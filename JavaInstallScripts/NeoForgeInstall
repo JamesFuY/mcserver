@@ -1,0 +1,99 @@
+#!/bin/bash
+
+sudo apt update -qq
+sudo apt install -y -qq jq curl
+
+
+export MAIN_DIR=$(pwd)
+
+
+echo -e "Fetching NeoForge versions..."
+
+
+# NeoForge maven base URL
+NEO_BASE="https://maven.neoforged.net/releases/net/neoforged/neoforge"
+
+
+cd ..
+rm -f ./startJavaServer
+wget https://raw.githubusercontent.com/lordofwizard/mcserver/main/startJavaServer
+chmod +x ./startJavaServer
+mkdir -p server
+cd server
+
+
+echo -e "\nVisit $NEO_BASE to check available versions if needed."
+
+
+echo -e "\n> Enter Minecraft version (example: 1.21.1): "
+read MC_VERSION
+
+
+if [[ -z "$MC_VERSION" ]]; then
+echo "Minecraft version is required."
+exit 1
+fi
+
+
+echo -e "> Enter NeoForge version (example: 21.1.64 for MC 1.21.1): "
+read NEOFORGE_VERSION
+
+
+if [[ -z "$NEOFORGE_VERSION" ]]; then
+echo "NeoForge version is required."
+exit 1
+fi
+
+
+DOWNLOAD_LINK="$NEO_BASE/${NEOFORGE_VERSION}/neoforge-${NEOFORGE_VERSION}-installer.jar"
+
+
+echo -e "Downloading NeoForge version ${NEOFORGE_VERSION}"
+echo -e "Download link: ${DOWNLOAD_LINK}"
+
+
+if curl --output /dev/null --silent --head --fail "${DOWNLOAD_LINK}"; then
+echo -e "Installer link is valid."
+else
+echo -e "Invalid download link. Aborting."
+exit 2
+fi
+
+
+curl -s -o installer.jar -sS "${DOWNLOAD_LINK}"
+
+
+if [ ! -f ./installer.jar ]; then
+echo "Error downloading NeoForge installer."
+exit 1
+fi
+
+
+echo -e "Installing NeoForge server..."
+java -jar installer.jar --installServer || { echo -e "Install failed"; exit 4; }
+
+
+echo -e "Deleting installer.jar..."
+rm -f installer.jar
+
+
+echo "eula=true" > eula.txt
+
+
+# Create run.sh
+echo "#!/bin/bash
+export JAVA=../bin/java_bins/bin/java
+
+
+\$JAVA @user_jvm_args.txt @libraries/net/neoforged/neoforge/${NEOFORGE_VERSION}/unix_args.txt \"\$@\"" > run.sh
+chmod +x run.sh
+
+
+# Create startJavaServer wrapper
+echo "#!/bin/bash
+cd server
+./run.sh -nogui" > ../startJavaServer
+chmod +x ../startJavaServer
+
+
+echo "NeoForge server setup complete."
